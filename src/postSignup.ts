@@ -56,7 +56,6 @@ export async function handlePostSignupPrompts(
 
             const labels = [
                 'No, thanks',
-                'Start using Proton Mail now',
                 'Continue',
                 "Let's get started",
                 'Maybe later',

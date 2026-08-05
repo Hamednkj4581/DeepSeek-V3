@@ -51,17 +51,16 @@ test('handles prompts from different Proton signup versions until the account ro
     assert.deepEqual(actions, ['Continue', "Let's get started"]);
 });
 
-test('prioritizes dismissing a delayed offer before resubmitting the populated signup form', async () => {
+test('dismisses a delayed offer without reopening human verification', async () => {
     const actions = await handlePostSignupPrompts(fakePage([
         { action: 'No, thanks', location: 'https://account.proton.me/mail/signup' },
-        { action: 'Start using Proton Mail now', location: 'https://account.proton.me/mail/signup' },
         { complete: true, location: 'https://mail.proton.me/u/0/inbox' }
     ]), {
-        maxPolls: 3,
+        maxPolls: 2,
         wait: async () => undefined
     });
 
-    assert.deepEqual(actions, ['No, thanks', 'Start using Proton Mail now']);
+    assert.deepEqual(actions, ['No, thanks']);
 });
 
 test('allows Proton account creation to remain idle for longer than the old 60 second limit', async () => {
