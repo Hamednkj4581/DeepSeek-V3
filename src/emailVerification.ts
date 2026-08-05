@@ -21,6 +21,10 @@ function sanitizeMessage(message: string, email: string): string {
         .slice(0, 300);
 }
 
+function isMeaningfulError(message: string): boolean {
+    return /error|failed|unable|invalid|try again|too many|rate limit|temporar|not available|blocked|problem|错误|失败|无效|稍后|频繁|限制/i.test(message);
+}
+
 async function readEmailVerificationState(page: Pick<Page, 'evaluate'>): Promise<EmailVerificationState> {
     return page.evaluate(() => {
         const visible = (element: Element): boolean => element.getClientRects().length > 0;
@@ -53,7 +57,7 @@ export async function requestEmailVerificationCode(
     options: EmailVerificationRequestOptions = {}
 ): Promise<Date> {
     const attempts = options.attempts ?? 2;
-    const pollsPerAttempt = options.pollsPerAttempt ?? 15;
+    const pollsPerAttempt = options.pollsPerAttempt ?? 30;
     const pollIntervalSeconds = options.pollIntervalSeconds ?? 1;
     const wait = options.wait ?? Utility.waitForSeconds;
 
@@ -63,7 +67,7 @@ export async function requestEmailVerificationCode(
 
         for (let poll = 0; poll < pollsPerAttempt; poll++) {
             const state = await readEmailVerificationState(page);
-            if (state.error)
+            if (state.error && isMeaningfulError(state.error))
                 throw new Error(`Proton 邮箱验证码发送失败：${sanitizeMessage(state.error, email)}`);
             if (state.sent)
                 return requestedAt;

@@ -35,6 +35,16 @@ test('reports a visible Proton send error without leaking the Outlook address', 
     assert.equal(page.clicks, 1);
 });
 
+test('ignores decorative text returned by a generic Proton error selector', async () => {
+    const page = fakePage([{ sent: false, error: '@proton.me' }, { sent: true }]);
+
+    await requestEmailVerificationCode(page, 'outlook@example.com', {
+        pollsPerAttempt: 2,
+        wait: async () => undefined
+    });
+    assert.equal(page.clicks, 1);
+});
+
 test('retries a click that produces no verification state transition', async () => {
     const page = fakePage([{ sent: false }, { sent: false }]);
 
