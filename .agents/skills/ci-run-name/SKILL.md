@@ -1,19 +1,20 @@
 ---
 name: ci-run-name
-description: 提交并推送修改或操作 GitHub Actions CI 时，强制为目标提交触发运行，并用提交主题设置 workflow run 的显示名称。
+description: 本仓库每次推送提交后，显式触发唯一的手动 CI `.github/workflows/ci.yml`，用提交主题命名运行并验证结果。
 ---
 
-# 使用提交信息命名 CI 运行
+# 触发并命名唯一 CI
 
-## 工作流定义
+## 固定约束
 
-- 对仅由 `workflow_dispatch` 触发的 CI，声明必填字符串输入 `commit_message`，并在工作流顶层设置 `run-name: ${{ inputs.commit_message }}`。
+- 本仓库只有 `.github/workflows/ci.yml` 一个 CI 工作流，且只由 `workflow_dispatch` 手动触发；推送提交不会自动创建运行。
+- `ci.yml` 必须声明必填字符串输入 `commit_message`，并在工作流顶层设置 `run-name: ${{ inputs.commit_message }}`。
 - 不使用 `github.event.head_commit.message`：`workflow_dispatch` 的事件载荷不提供该字段。
 - 运行名称只能使用提交主题，不得拼入 `accounts`、token、邮箱、密码或其他敏感输入。
 
 ## 提交后的强制闭环
 
-1. 每次新提交成功推送后，必须为该提交触发一次 `ci.yml`；不能停在提交或推送成功，也不能用其他 SHA 的已有运行代替。
+1. 每次新提交成功推送后，必须显式 dispatch 唯一的 `ci.yml`；不能等待不存在的自动触发，不能停在推送成功，也不能用其他 SHA 的已有运行代替。
 2. 记录当前分支、推送后的 SHA 和 UTC 触发时间，并确认远端分支已指向该 SHA。
 3. 使用 `git log -1 --format=%s <sha>` 读取单行提交主题；主题为空时停止并报告，不得用敏感输入或无意义文本代替。
 4. 从 `测试数据.txt` 第二行读取 `accounts`，只在进程内构造 dispatch inputs；同时传入 `commit_message`。PAT 与 inputs 的处理分别遵守 `maintain-github-pat` 和 `github-actions-rest` skill，不得回显或落盘。
