@@ -1,6 +1,6 @@
 ---
 name: ci-run-name
-description: 修改或触发 GitHub Actions CI 时，用目标提交主题设置 workflow run 的显示名称，便于在 Actions 列表中识别运行。
+description: 提交并推送修改或操作 GitHub Actions CI 时，强制为目标提交触发运行，并用提交主题设置 workflow run 的显示名称。
 ---
 
 # 使用提交信息命名 CI 运行
@@ -11,14 +11,18 @@ description: 修改或触发 GitHub Actions CI 时，用目标提交主题设置
 - 不使用 `github.event.head_commit.message`：`workflow_dispatch` 的事件载荷不提供该字段。
 - 运行名称只能使用提交主题，不得拼入 `accounts`、token、邮箱、密码或其他敏感输入。
 
-## 触发 CI
+## 提交后的强制闭环
 
-1. 先确定 dispatch 的目标 ref 和 SHA，确保提交信息与实际运行的 `head_sha` 对应。
-2. 使用 `git log -1 --format=%s <sha>` 读取单行提交主题；主题为空时停止触发并报告，不得用敏感输入或无意义文本代替。
-3. 调用 workflow dispatch 时同时传入 `commit_message` 和工作流要求的其他 inputs。JSON 仍按 `github-actions-rest` skill 的安全规则在进程内生成，不把凭据写进命令或日志。
+1. 每次新提交成功推送后，必须为该提交触发一次 `ci.yml`；不能停在提交或推送成功，也不能用其他 SHA 的已有运行代替。
+2. 记录当前分支、推送后的 SHA 和 UTC 触发时间，并确认远端分支已指向该 SHA。
+3. 使用 `git log -1 --format=%s <sha>` 读取单行提交主题；主题为空时停止并报告，不得用敏感输入或无意义文本代替。
+4. 从 `测试数据.txt` 第二行读取 `accounts`，只在进程内构造 dispatch inputs；同时传入 `commit_message`。PAT 与 inputs 的处理分别遵守 `maintain-github-pat` 和 `github-actions-rest` skill，不得回显或落盘。
+5. 调用 workflow dispatch 后按触发时间、分支和目标 SHA 轮询。收到 `204` 只表示请求成功，不表示闭环完成；必须找到本次新建的唯一 run ID。
+6. 等待运行完成并逐个检查 jobs。只有目标运行已完成，或凭据、权限、服务状态等外部条件明确阻塞时才能结束任务；阻塞时必须报告尚未触发或尚未完成，不能声称交付完成。
 
 ## 验证
 
 - 校验工作流 YAML，并确认 `run-name` 只引用非敏感的 `commit_message`。
-- 触发后按目标 SHA 关联运行，确认返回的 `head_sha` 是目标提交，且 `display_title` 等于该提交的单行主题。
+- 触发后确认运行的 `event == workflow_dispatch`、`head_sha` 是目标提交，且 `display_title` 等于该提交的单行主题。
+- 最终报告 run ID、网页 URL、运行状态和目标 jobs 结论；没有匹配运行时任务未完成。
 - 重跑已有 workflow run 会沿用原运行名称；新提交必须以该提交自身的主题触发新运行。
