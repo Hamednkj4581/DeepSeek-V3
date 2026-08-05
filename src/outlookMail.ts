@@ -18,6 +18,11 @@ export interface WaitForVerificationOptions {
 }
 
 const DEFAULT_VERIFICATION_TIMEOUT_MS = 90_000;
+const VERIFICATION_DATE_SKEW_MS = 30_000;
+
+export function verificationSearchStart(receivedAfter: Date): Date {
+    return new Date(receivedAfter.getTime() - VERIFICATION_DATE_SKEW_MS);
+}
 
 function maskEmail(email: string): string {
     const [name, domain = ''] = email.split('@');
@@ -206,11 +211,15 @@ async function findVerificationInMailbox(
     receivedAfter: Date,
     excludedCodes: Set<string>
 ): Promise<string | undefined> {
+    const searchStart = verificationSearchStart(receivedAfter);
     const lock = await client.getMailboxLock(mailbox);
     try {
         // search() returns sequence numbers by default. Request UIDs explicitly
         // because fetchOne() below also runs in UID mode.
-        const ids = await client.search({ since: receivedAfter }, { uid: true });
+        // Allow a small clock/precision difference between the runner and the
+        // message Date header. Outlook commonly stores dates at whole-second
+        // precision, while receivedAfter includes milliseconds.
+        const ids = await client.search({ since: searchStart }, { uid: true });
         if (!ids || !ids.length)
             return undefined;
 
@@ -218,7 +227,7 @@ async function findVerificationInMailbox(
             const message = await client.fetchOne(uid, { envelope: true, source: true }, { uid: true });
             if (!message || !message.source)
                 continue;
-            if (message.envelope?.date && message.envelope.date < receivedAfter)
+            if (message.envelope?.date && message.envelope.date < searchStart)
                 continue;
 
             const subject = message.envelope?.subject ?? '';
