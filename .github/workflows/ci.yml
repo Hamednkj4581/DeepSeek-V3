@@ -1,0 +1,130 @@
+name: Proton Mail register
+
+on:
+  workflow_dispatch:
+    inputs:
+      accounts:
+        description: '多个 Outlook 账号用英文分号 ; 或换行分隔：邮箱----邮箱密码----client_id----refresh_token'
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Asia/Shanghai
+
+jobs:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      ids: ${{ steps.matrix.outputs.ids }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: matrix
+        name: 校验 Outlook 账号并生成矩阵
+        shell: python
+        env:
+          ACCOUNTS: ${{ inputs.accounts }}
+        run: |
+          import json
+          import os
+          import sys
+
+          sys.path.insert(0, '.github/scripts')
+          from account_input import parse_accounts
+
+          try:
+              accounts = parse_accounts(os.environ['ACCOUNTS'])
+          except ValueError as error:
+              raise SystemExit(str(error)) from None
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write('ids=' + json.dumps(list(range(len(accounts))), separators=(',', ':')) + '\n')
+
+  register:
+    needs: prepare-matrix
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      max-parallel: 20
+      fail-fast: false
+      matrix:
+        account_index: ${{ fromJson(needs.prepare-matrix.outputs.ids) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 读取并保护 Outlook 配置
+        shell: python
+        env:
+          ACCOUNTS: ${{ inputs.accounts }}
+          ACCOUNT_INDEX: ${{ matrix.account_index }}
+        run: |
+          import os
+          import sys
+
+          sys.path.insert(0, '.github/scripts')
+          from account_input import parse_accounts
+
+          email, email_password, client_id, refresh_token = parse_accounts(os.environ['ACCOUNTS'])[int(os.environ['ACCOUNT_INDEX'])]
+          for value in (email, email_password, client_id, refresh_token):
+              print(f'::add-mask::{value}')
+
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env_file:
+              for name, value in (('EMAIL', email), ('CLIENT_ID', client_id), ('REFRESH_TOKEN', refresh_token)):
+                  env_file.write(f'{name}<<__ACCOUNT_VALUE__\n{value}\n__ACCOUNT_VALUE__\n')
+
+      - name: 构建并运行 Proton 注册
+        env:
+          ACCOUNT_RESULT_PATH: step-summary
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+          npm install
+          npm run typecheck
+          npm test
+          npm run build
+          timeout -k 30s 300s node dist/app.js
+
+      - name: 上传账号结果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: step-summary-${{ matrix.account_index }}
+          path: step-summary
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: 上传失败截图
+        if: failure() && hashFiles('images/**') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: images-${{ matrix.account_index }}
+          path: images/
+          retention-days: 7
+
+  collect-summary:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: register
+    steps:
+      - name: 下载所有账号结果
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: step-summary-*
+          path: summaries
+
+      - name: 合并结果
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+
+          results = []
+          for path in sorted(Path('summaries').rglob('step-summary')):
+              if path.is_file():
+                  results.extend(line for line in path.read_text(encoding='utf-8').splitlines() if line.strip())
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              if results:
+                  summary.write('\n'.join(results) + '\n')
