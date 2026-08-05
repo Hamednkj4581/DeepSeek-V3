@@ -3,6 +3,7 @@ import Utility from './Utility.js';
 
 export interface PostSignupPromptOptions {
     maxPolls?: number;
+    initialIdlePollsBeforeExit?: number;
     idlePollsBeforeExit?: number;
     pollIntervalSeconds?: number;
     wait?: (seconds: number) => Promise<void>;
@@ -12,14 +13,15 @@ export async function handlePostSignupPrompts(
     page: Pick<Page, 'evaluate'>,
     options: PostSignupPromptOptions = {}
 ): Promise<string[]> {
-    const maxPolls = options.maxPolls ?? 30;
+    const maxPolls = options.maxPolls ?? 90;
+    const initialIdlePollsBeforeExit = options.initialIdlePollsBeforeExit ?? 60;
     const idlePollsBeforeExit = options.idlePollsBeforeExit ?? 5;
     const pollIntervalSeconds = options.pollIntervalSeconds ?? 1;
     const wait = options.wait ?? Utility.waitForSeconds;
     const actions: string[] = [];
     let idlePolls = 0;
 
-    for (let poll = 0; poll < maxPolls && idlePolls < idlePollsBeforeExit; poll++) {
+    for (let poll = 0; poll < maxPolls; poll++) {
         const action = await page.evaluate(() => {
             const visible = (element: Element): boolean => element.getClientRects().length > 0;
             const checkbox = document.querySelector<HTMLInputElement>('#understood-recovery-necessity');
@@ -51,7 +53,11 @@ export async function handlePostSignupPrompts(
             idlePolls++;
         }
 
-        if (poll + 1 < maxPolls && idlePolls < idlePollsBeforeExit)
+        const idleLimit = actions.length ? idlePollsBeforeExit : initialIdlePollsBeforeExit;
+        if (idlePolls >= idleLimit)
+            break;
+
+        if (poll + 1 < maxPolls)
             await wait(pollIntervalSeconds);
     }
 

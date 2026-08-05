@@ -19,6 +19,7 @@ test('continues when no post-signup prompt exists', async () => {
     let waits = 0;
     const actions = await handlePostSignupPrompts(fakePage([undefined, undefined, undefined]), {
         maxPolls: 10,
+        initialIdlePollsBeforeExit: 3,
         idlePollsBeforeExit: 3,
         wait: async () => { waits++; }
     });
@@ -41,4 +42,27 @@ test('handles prompts that appear in different versions without requiring all of
     });
 
     assert.deepEqual(actions, ['Continue', "Let's get started"]);
+});
+
+test('waits for the first post-signup prompt while Proton creates the account', async () => {
+    let waits = 0;
+    const actions = await handlePostSignupPrompts(fakePage([
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'understood recovery necessity',
+        'Continue',
+        undefined,
+        undefined
+    ]), {
+        maxPolls: 20,
+        initialIdlePollsBeforeExit: 10,
+        idlePollsBeforeExit: 2,
+        wait: async () => { waits++; }
+    });
+
+    assert.deepEqual(actions, ['understood recovery necessity', 'Continue']);
+    assert.equal(waits, 8);
 });
