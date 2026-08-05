@@ -11,6 +11,7 @@ import { OutlookCredentials, preflightOutlook, waitForProtonVerificationCode } f
 import { formatProtonAccount } from './accountResult.js';
 import { VERIFICATION_TIMEOUT_MS } from './appConfig.js';
 import { handlePostSignupPrompts } from './postSignup.js';
+import { requestEmailVerificationCode } from './emailVerification.js';
 
 const PROTOCOL_TIMEOUT_MS = Math.pow(2, 31) - 1;
 
@@ -95,8 +96,7 @@ async function registerProton(page: Page, credentials: OutlookCredentials): Prom
 
     await emailVerification.click();
     await page.type("//input[@id='email']", credentials.email);
-    const signupVerificationStartedAt = new Date();
-    await page.click("//button[text()='Get verification code']");
+    const signupVerificationStartedAt = await requestEmailVerificationCode(page, credentials.email);
     const signupCode = await receiveVerificationCode(credentials, signupVerificationStartedAt);
     await page.type("//input[@id='verification']", signupCode);
     await page.click("//button[text()='Verify']");
