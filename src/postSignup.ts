@@ -54,7 +54,14 @@ export async function handlePostSignupPrompts(
                 return { action: 'understood recovery necessity', location };
             }
 
-            const labels = ['Continue', "Let's get started", 'Maybe later', 'Next', 'Use this'];
+            const labels = [
+                'Start using Proton Mail now',
+                'Continue',
+                "Let's get started",
+                'Maybe later',
+                'Next',
+                'Use this'
+            ];
             const buttons = Array.from(document.querySelectorAll('button')) as HTMLButtonElement[];
             const button = buttons.find(candidate =>
                 labels.includes((candidate.textContent ?? '').trim())
