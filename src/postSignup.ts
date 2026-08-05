@@ -63,10 +63,11 @@ export async function handlePostSignupPrompts(
                 'Next',
                 'Use this'
             ];
-            const buttons = Array.from(document.querySelectorAll('button')) as HTMLButtonElement[];
-            const button = buttons.find(candidate =>
+            const controls = Array.from(document.querySelectorAll<HTMLElement>('button, a, [role="button"]'));
+            const button = controls.find(candidate =>
                 labels.includes((candidate.textContent ?? '').trim())
-                && !candidate.disabled
+                && !candidate.hasAttribute('disabled')
+                && candidate.getAttribute('aria-disabled') !== 'true'
                 && visible(candidate)
             );
             if (button) {
