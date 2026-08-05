@@ -48,6 +48,30 @@ async function enterSixDigitCode(page: Page, code: string): Promise<void> {
         await page.type(`//input[@aria-label='Enter verification code. Digit ${index + 1}.']`, code[index]);
 }
 
+async function dismissWelcomeTour(page: Page): Promise<void> {
+    const maxSteps = 10;
+    for (let step = 0; step < maxSteps; step++) {
+        const clicked = await page.evaluate(() => {
+            const labels = ['Maybe later', 'Next', 'Use this'];
+            const buttons = Array.from(document.querySelectorAll('button')) as HTMLButtonElement[];
+            const button = buttons.find(candidate =>
+                labels.includes((candidate.textContent ?? '').trim())
+                && !candidate.disabled
+                && candidate.getClientRects().length > 0
+            );
+            button?.click();
+            return button ? (button.textContent ?? '').trim() : undefined;
+        });
+
+        if (!clicked)
+            return;
+        logger.info('处理 Proton 欢迎引导：%s', clicked);
+        await Utility.waitForSeconds(1);
+    }
+
+    throw new Error(`Proton 欢迎引导在 ${maxSteps} 步后仍未结束`);
+}
+
 async function receiveVerificationCode(
     credentials: OutlookCredentials,
     receivedAfter: Date,
@@ -104,9 +128,7 @@ async function registerProton(page: Page, credentials: OutlookCredentials): Prom
     await page.click("//button[text()='Continue' and not(@disabled)]");
     await page.click("//button[text()='Continue']");
     await page.click("//button[text()=\"Let's get started\"]", { timeout: MAX_TIMEOUT });
-    await page.click("//button[text()='Maybe later']");
-    await page.click("//button[text()='Next']");
-    await page.click("//button[text()='Use this']");
+    await dismissWelcomeTour(page);
 
     await page.goto('https://account.proton.me/u/0/mail/recovery');
     await page.click("//a[text()='Safeguard account now']");
