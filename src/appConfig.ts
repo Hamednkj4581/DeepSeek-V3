@@ -1,0 +1,1 @@
+export const VERIFICATION_TIMEOUT_MS = 180_000;

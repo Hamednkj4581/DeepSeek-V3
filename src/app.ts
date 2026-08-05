@@ -9,9 +9,9 @@ import logger from './logger.js';
 import githubAnnotation from './annotations.js';
 import { OutlookCredentials, preflightOutlook, waitForProtonVerificationCode } from './outlookMail.js';
 import { formatProtonAccount } from './accountResult.js';
+import { VERIFICATION_TIMEOUT_MS } from './appConfig.js';
 
 const MAX_TIMEOUT = Math.pow(2, 31) - 1;
-const VERIFICATION_TIMEOUT_MS = 90_000;
 
 function requiredEnv(name: string): string {
     const value = process.env[name]?.trim();

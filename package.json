@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "esbuild src/app.ts --bundle --platform=node --format=cjs --outfile=dist/app.js",
-    "test": "esbuild src/outlookMail.test.ts src/accountResult.test.ts --bundle --platform=node --format=cjs --outdir=dist/tests && node --test dist/tests/outlookMail.test.js dist/tests/accountResult.test.js",
+    "test": "esbuild src/outlookMail.test.ts src/accountResult.test.ts src/appConfig.test.ts --bundle --platform=node --format=cjs --outdir=dist/tests && node --test dist/tests/outlookMail.test.js dist/tests/accountResult.test.js dist/tests/appConfig.test.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

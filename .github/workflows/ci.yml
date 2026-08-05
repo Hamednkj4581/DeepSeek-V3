@@ -84,7 +84,7 @@ jobs:
           npm run typecheck
           npm test
           npm run build
-          timeout -k 30s 300s node dist/app.js
+          timeout -k 30s 600s node dist/app.js
 
       - name: 上传账号结果
         if: always()
