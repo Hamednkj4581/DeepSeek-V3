@@ -12,6 +12,7 @@ import { formatProtonAccount } from './accountResult.js';
 import { VERIFICATION_TIMEOUT_MS } from './appConfig.js';
 import { handlePostSignupPrompts } from './postSignup.js';
 import { requestEmailVerificationCode } from './emailVerification.js';
+import { openRecoveryEmailDialog } from './recoveryEmail.js';
 
 const PROTOCOL_TIMEOUT_MS = Math.pow(2, 31) - 1;
 
@@ -108,9 +109,8 @@ async function registerProton(page: Page, credentials: OutlookCredentials): Prom
         logger.info('未出现已知 Proton 注册后提示，继续设置账号');
 
     await page.goto('https://account.proton.me/u/0/mail/recovery');
-    await page.click("//a[text()='Safeguard account now']");
-    await page.click("//div[normalize-space(.)='Show more (2)']");
-    await page.click("//h2[text()='Add a recovery email address']");
+    const recoveryEntryActions = await openRecoveryEmailDialog(page);
+    logger.info('打开 Proton 恢复邮箱设置：%s', recoveryEntryActions.join(' -> ') || '邮箱输入框已显示');
     await page.type("//input[@id='recovery-email-input']", credentials.email);
     const recoveryVerificationStartedAt = new Date();
     await page.click("//button[text()='Add email address']");
