@@ -5,6 +5,8 @@ export interface PostSignupPromptOptions {
     maxPolls?: number;
     pollIntervalSeconds?: number;
     wait?: (seconds: number) => Promise<void>;
+    onVerificationRequired?: () => Promise<void>;
+    maxVerificationRetries?: number;
 }
 
 interface PostSignupState {
@@ -12,6 +14,7 @@ interface PostSignupState {
     complete?: boolean;
     error?: string;
     location?: string;
+    verificationRequired?: boolean;
 }
 
 function safePageLocation(value: string | undefined): string {
@@ -33,8 +36,10 @@ export async function handlePostSignupPrompts(
     const maxPolls = options.maxPolls ?? 180;
     const pollIntervalSeconds = options.pollIntervalSeconds ?? 1;
     const wait = options.wait ?? Utility.waitForSeconds;
+    const maxVerificationRetries = options.maxVerificationRetries ?? 1;
     const actions: string[] = [];
     let lastLocation: string | undefined;
+    let verificationRetries = 0;
 
     for (let poll = 0; poll < maxPolls; poll++) {
         const state = await page.evaluate((): PostSignupState => {
@@ -48,6 +53,12 @@ export async function handlePostSignupPrompts(
             if (signInInput && visible(signInInput))
                 return { error: '注册后被重定向到登录页，账号会话未建立', location };
 
+            const verificationEmail = document.querySelector('#email');
+            const humanVerification = Array.from(document.querySelectorAll('h1, h2, [role="heading"]'))
+                .some(element => visible(element) && /human verification/i.test(element.textContent ?? ''));
+            if (verificationEmail && visible(verificationEmail) && humanVerification)
+                return { verificationRequired: true, location };
+
             const checkbox = document.querySelector<HTMLInputElement>('#understood-recovery-necessity');
             if (checkbox && visible(checkbox) && !checkbox.checked && !checkbox.disabled) {
                 checkbox.click();
@@ -56,6 +67,7 @@ export async function handlePostSignupPrompts(
 
             const labels = [
                 'No, thanks',
+                'Start using Proton Mail now',
                 'Continue',
                 "Let's get started",
                 'Maybe later',
@@ -93,6 +105,15 @@ export async function handlePostSignupPrompts(
             throw new Error(`Proton 注册完成阶段失败：${state.error}`);
         if (state.complete)
             return actions;
+        if (state.verificationRequired) {
+            if (!options.onVerificationRequired)
+                throw new Error('Proton 注册完成阶段再次要求邮箱验证，但未配置验证处理器');
+            if (verificationRetries >= maxVerificationRetries)
+                throw new Error(`Proton 注册完成阶段重复要求邮箱验证，已达到 ${maxVerificationRetries} 次重试上限`);
+            verificationRetries++;
+            await options.onVerificationRequired();
+            actions.push('Email verification');
+        }
         if (state.action)
             actions.push(state.action);
 

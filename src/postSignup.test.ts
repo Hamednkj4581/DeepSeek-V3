@@ -9,6 +9,7 @@ interface FakePostSignupState {
     complete?: boolean;
     error?: string;
     location?: string;
+    verificationRequired?: boolean;
 }
 
 function fakePage(results: Array<FakePostSignupState | Error>): Pick<Page, 'evaluate'> {
@@ -51,16 +52,35 @@ test('handles prompts from different Proton signup versions until the account ro
     assert.deepEqual(actions, ['Continue', "Let's get started"]);
 });
 
-test('dismisses a delayed offer without reopening human verification', async () => {
+test('dismisses a delayed offer and completes one repeated email verification', async () => {
+    let verificationRetries = 0;
     const actions = await handlePostSignupPrompts(fakePage([
         { action: 'No, thanks', location: 'https://account.proton.me/mail/signup' },
+        { action: 'Start using Proton Mail now', location: 'https://account.proton.me/mail/signup' },
+        { verificationRequired: true, location: 'https://account.proton.me/mail/signup' },
         { complete: true, location: 'https://mail.proton.me/u/0/inbox' }
     ]), {
-        maxPolls: 2,
+        maxPolls: 4,
+        onVerificationRequired: async () => { verificationRetries++; },
         wait: async () => undefined
     });
 
-    assert.deepEqual(actions, ['No, thanks']);
+    assert.deepEqual(actions, ['No, thanks', 'Start using Proton Mail now', 'Email verification']);
+    assert.equal(verificationRetries, 1);
+});
+
+test('stops when Proton repeatedly requests email verification', async () => {
+    await assert.rejects(
+        handlePostSignupPrompts(fakePage([
+            { verificationRequired: true },
+            { verificationRequired: true }
+        ]), {
+            maxPolls: 2,
+            onVerificationRequired: async () => undefined,
+            wait: async () => undefined
+        }),
+        /已达到 1 次重试上限/
+    );
 });
 
 test('allows Proton account creation to remain idle for longer than the old 60 second limit', async () => {

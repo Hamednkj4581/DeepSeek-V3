@@ -102,7 +102,17 @@ async function registerProton(page: Page, credentials: OutlookCredentials): Prom
     await page.type("//input[@id='verification']", signupCode);
     await page.click("//button[text()='Verify']");
 
-    const postSignupActions = await handlePostSignupPrompts(page);
+    const signupCodes = [signupCode];
+    const postSignupActions = await handlePostSignupPrompts(page, {
+        onVerificationRequired: async () => {
+            await page.type("//input[@id='email']", credentials.email);
+            const requestedAt = await requestEmailVerificationCode(page, credentials.email);
+            const code = await receiveVerificationCode(credentials, requestedAt, signupCodes);
+            signupCodes.push(code);
+            await page.type("//input[@id='verification']", code);
+            await page.click("//button[text()='Verify']");
+        }
+    });
     if (postSignupActions.length)
         logger.info('处理 Proton 注册后提示：%s', postSignupActions.join(' -> '));
     else
