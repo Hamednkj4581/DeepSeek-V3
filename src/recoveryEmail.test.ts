@@ -2,9 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Page } from 'puppeteer';
 
-import { openRecoveryEmailDialog } from './recoveryEmail.js';
+import { openRecoveryEmailDialog, submitRecoveryEmail } from './recoveryEmail.js';
 
-function fakePage(states: Array<{ ready: boolean; action?: string }>): Pick<Page, 'evaluate'> {
+interface RecoveryEmailState {
+    ready: boolean;
+    action?: string;
+    authenticationRequired?: boolean;
+}
+
+function fakePage(states: RecoveryEmailState[]): Pick<Page, 'evaluate'> {
     return {
         evaluate: async () => states.shift() ?? { ready: false }
     } as unknown as Pick<Page, 'evaluate'>;
@@ -39,4 +45,43 @@ test('reports a clear error when no recovery email entry is available', async ()
         openRecoveryEmailDialog(fakePage([]), { maxPolls: 2, wait: async () => undefined }),
         /未找到可用的邮箱恢复入口/
     );
+});
+
+test('reports an expired registration session instead of a missing recovery entry', async () => {
+    await assert.rejects(
+        openRecoveryEmailDialog(fakePage([
+            { ready: false, authenticationRequired: true }
+        ]), { wait: async () => undefined }),
+        /注册会话已失效/
+    );
+});
+
+test('submits the current Add and verify recovery form', async () => {
+    const label = await submitRecoveryEmail({
+        evaluate: async () => 'Add and verify'
+    } as unknown as Pick<Page, 'evaluate'>, { wait: async () => undefined });
+
+    assert.equal(label, 'Add and verify');
+});
+
+test('supports the legacy Add email address submit button', async () => {
+    const label = await submitRecoveryEmail({
+        evaluate: async () => 'Add email address'
+    } as unknown as Pick<Page, 'evaluate'>, { wait: async () => undefined });
+
+    assert.equal(label, 'Add email address');
+});
+
+test('waits for the recovery submit button to become enabled', async () => {
+    const results = [undefined, 'Add and verify'];
+    let waits = 0;
+    const label = await submitRecoveryEmail({
+        evaluate: async () => results.shift()
+    } as unknown as Pick<Page, 'evaluate'>, {
+        maxPolls: 2,
+        wait: async () => { waits++; }
+    });
+
+    assert.equal(label, 'Add and verify');
+    assert.equal(waits, 1);
 });

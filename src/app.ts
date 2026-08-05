@@ -12,7 +12,7 @@ import { formatProtonAccount } from './accountResult.js';
 import { VERIFICATION_TIMEOUT_MS } from './appConfig.js';
 import { handlePostSignupPrompts } from './postSignup.js';
 import { requestEmailVerificationCode } from './emailVerification.js';
-import { openRecoveryEmailDialog } from './recoveryEmail.js';
+import { openRecoveryEmailDialog, submitRecoveryEmail } from './recoveryEmail.js';
 
 const PROTOCOL_TIMEOUT_MS = Math.pow(2, 31) - 1;
 
@@ -113,7 +113,8 @@ async function registerProton(page: Page, credentials: OutlookCredentials): Prom
     logger.info('打开 Proton 恢复邮箱设置：%s', recoveryEntryActions.join(' -> ') || '邮箱输入框已显示');
     await page.type("//input[@id='recovery-email-input']", credentials.email);
     const recoveryVerificationStartedAt = new Date();
-    await page.click("//button[text()='Add email address']");
+    const recoverySubmitAction = await submitRecoveryEmail(page);
+    logger.info('提交 Proton 恢复邮箱：%s', recoverySubmitAction);
     await page.type("//input[@id='password']", password);
     await page.click("//button[text()='Authenticate']");
     const recoveryCode = await receiveVerificationCode(credentials, recoveryVerificationStartedAt, [signupCode]);
