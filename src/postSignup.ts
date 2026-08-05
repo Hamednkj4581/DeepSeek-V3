@@ -64,16 +64,20 @@ export async function handlePostSignupPrompts(
                 'Use this'
             ];
             const controls = Array.from(document.querySelectorAll<HTMLElement>('button, a, [role="button"]'));
-            const button = controls.find(candidate =>
-                labels.includes((candidate.textContent ?? '').trim())
-                && !candidate.hasAttribute('disabled')
-                && candidate.getAttribute('aria-disabled') !== 'true'
-                && visible(candidate)
-            );
-            if (button) {
-                const label = (button.textContent ?? '').trim();
-                button.click();
-                return { action: label, location };
+            const target = labels
+                .map(label => ({
+                    label,
+                    element: controls.find(candidate =>
+                        (candidate.innerText ?? candidate.textContent ?? '').replace(/\s+/g, ' ').trim() === label
+                        && !candidate.hasAttribute('disabled')
+                        && candidate.getAttribute('aria-disabled') !== 'true'
+                        && visible(candidate)
+                    )
+                }))
+                .find(candidate => candidate.element);
+            if (target?.element) {
+                target.element.click();
+                return { action: target.label, location };
             }
 
             const alert = Array.from(document.querySelectorAll('[role="alert"], .notification--error'))
