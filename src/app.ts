@@ -10,8 +10,9 @@ import githubAnnotation from './annotations.js';
 import { OutlookCredentials, preflightOutlook, waitForProtonVerificationCode } from './outlookMail.js';
 import { formatProtonAccount } from './accountResult.js';
 import { VERIFICATION_TIMEOUT_MS } from './appConfig.js';
+import { handlePostSignupPrompts } from './postSignup.js';
 
-const MAX_TIMEOUT = Math.pow(2, 31) - 1;
+const PROTOCOL_TIMEOUT_MS = Math.pow(2, 31) - 1;
 
 function requiredEnv(name: string): string {
     const value = process.env[name]?.trim();
@@ -46,30 +47,6 @@ async function captureScreenshots(browser: Browser): Promise<void> {
 async function enterSixDigitCode(page: Page, code: string): Promise<void> {
     for (let index = 0; index < 6; index++)
         await page.type(`//input[@aria-label='Enter verification code. Digit ${index + 1}.']`, code[index]);
-}
-
-async function dismissWelcomeTour(page: Page): Promise<void> {
-    const maxSteps = 10;
-    for (let step = 0; step < maxSteps; step++) {
-        const clicked = await page.evaluate(() => {
-            const labels = ['Maybe later', 'Next', 'Use this'];
-            const buttons = Array.from(document.querySelectorAll('button')) as HTMLButtonElement[];
-            const button = buttons.find(candidate =>
-                labels.includes((candidate.textContent ?? '').trim())
-                && !candidate.disabled
-                && candidate.getClientRects().length > 0
-            );
-            button?.click();
-            return button ? (button.textContent ?? '').trim() : undefined;
-        });
-
-        if (!clicked)
-            return;
-        logger.info('处理 Proton 欢迎引导：%s', clicked);
-        await Utility.waitForSeconds(1);
-    }
-
-    throw new Error(`Proton 欢迎引导在 ${maxSteps} 步后仍未结束`);
 }
 
 async function receiveVerificationCode(
@@ -124,11 +101,11 @@ async function registerProton(page: Page, credentials: OutlookCredentials): Prom
     await page.type("//input[@id='verification']", signupCode);
     await page.click("//button[text()='Verify']");
 
-    await page.click("//input[@id='understood-recovery-necessity']", { timeout: MAX_TIMEOUT });
-    await page.click("//button[text()='Continue' and not(@disabled)]");
-    await page.click("//button[text()='Continue']");
-    await page.click("//button[text()=\"Let's get started\"]", { timeout: MAX_TIMEOUT });
-    await dismissWelcomeTour(page);
+    const postSignupActions = await handlePostSignupPrompts(page);
+    if (postSignupActions.length)
+        logger.info('处理 Proton 注册后提示：%s', postSignupActions.join(' -> '));
+    else
+        logger.info('未出现已知 Proton 注册后提示，继续设置账号');
 
     await page.goto('https://account.proton.me/u/0/mail/recovery');
     await page.click("//a[text()='Safeguard account now']");
@@ -167,7 +144,7 @@ async function registerProton(page: Page, credentials: OutlookCredentials): Prom
         const credentials = outlookCredentialsFromEnv();
         await preflightOutlook(credentials);
         browser = await puppeteer.launch({
-            headless: os.platform() === 'linux', defaultViewport: null, protocolTimeout: MAX_TIMEOUT, slowMo: 20,
+            headless: os.platform() === 'linux', defaultViewport: null, protocolTimeout: PROTOCOL_TIMEOUT_MS, slowMo: 20,
             handleSIGINT: false, handleSIGTERM: false, handleSIGHUP: false,
             args: [
                 '--lang=en-US', '--window-size=1920,1080', '--disable-blink-features=AutomationControlled',

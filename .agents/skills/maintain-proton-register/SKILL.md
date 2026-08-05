@@ -16,6 +16,7 @@ description: 维护 Proton Mail 注册、Outlook OAuth2/IMAP 邮件验证及 Git
 
 - `测试数据.txt` 第一行为 GitHub PAT，第二行为 Outlook 账号；该文件必须保持未跟踪并被 `.gitignore` 忽略。
 - PAT 的读取、校验、警告与禁止删除等规则见 `maintain-github-pat` skill，本 skill 不重复定义。
+- Actions 的查询、触发、轮询、逐 job 检查以及日志和 artifacts 下载见 `github-actions-rest` skill；不依赖本机安装 `gh` CLI。
 - 本地仅使用 `EMAIL`、`CLIENT_ID`、`REFRESH_TOKEN`；Outlook 邮箱密码只为兼容 Actions 四字段输入，不参与登录。
 - Actions 的 `accounts` 每项格式为 `email----email_password----client_id----refresh_token`，多项用英文分号或换行分隔。矩阵只传账号索引；使用字段前全部添加掩码，日志和错误不得泄露邮箱或 token。
 - 测试数据仅在进程内使用，不得回显或复制到已跟踪文件。
@@ -23,7 +24,7 @@ description: 维护 Proton Mail 注册、Outlook OAuth2/IMAP 邮件验证及 Git
 ## 修改循环
 
 1. 检查 `git status` 和当前分支，读取 Proton 主流程、`outlookMail.ts`、`ci.yml` 及相关测试。
-2. 修改前检查当前分支最新提交对应的 Actions 运行；没有有效运行或运行异常时，使用 `测试数据.txt` 触发 `ci.yml` 并等待完成。
+2. 修改前通过 GitHub REST API 检查当前分支最新提交对应的 Actions 运行；没有有效运行或运行异常时，使用 `测试数据.txt` 触发 `ci.yml` 并有限轮询到完成。
 3. 检查每个 `register (N)` job 的结论，不能只看工作流顶层结论，因为注册任务使用了 `continue-on-error`。
 4. 注册失败时将对应日志和 `images-N` 下载到仓库外，结合失败阶段的 URL、标题、DOM 和截图定位原因。
 5. 页面、选择器或工作流问题做最小兼容修改。`invalid_grant` 或 token 过期要求重新授权，`invalid_client` 检查 client ID，IMAP 鉴权失败检查 `IMAP.AccessAsUser.All`；凭据无效或 Proton 外部风控时停止改代码，不提供绕过方案。
