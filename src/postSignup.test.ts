@@ -69,6 +69,21 @@ test('dismisses a delayed offer and completes one repeated email verification', 
     assert.equal(verificationRetries, 1);
 });
 
+test('waits for the current email verification to finish before requesting another code', async () => {
+    let verificationRetries = 0;
+    const actions = await handlePostSignupPrompts(fakePage([
+        { location: 'https://account.proton.me/mail/signup' },
+        { complete: true, location: 'https://mail.proton.me/u/0/inbox' }
+    ]), {
+        maxPolls: 2,
+        onVerificationRequired: async () => { verificationRetries++; },
+        wait: async () => undefined
+    });
+
+    assert.deepEqual(actions, []);
+    assert.equal(verificationRetries, 0);
+});
+
 test('stops when Proton repeatedly requests email verification', async () => {
     await assert.rejects(
         handlePostSignupPrompts(fakePage([

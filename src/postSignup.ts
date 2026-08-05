@@ -54,9 +54,11 @@ export async function handlePostSignupPrompts(
                 return { error: '注册后被重定向到登录页，账号会话未建立', location };
 
             const verificationEmail = document.querySelector('#email');
+            const verificationCode = document.querySelector('#verification');
             const humanVerification = Array.from(document.querySelectorAll('h1, h2, [role="heading"]'))
                 .some(element => visible(element) && /human verification/i.test(element.textContent ?? ''));
-            if (verificationEmail && visible(verificationEmail) && humanVerification)
+            if (verificationEmail && visible(verificationEmail) && humanVerification
+                && !(verificationCode && visible(verificationCode)))
                 return { verificationRequired: true, location };
 
             const checkbox = document.querySelector<HTMLInputElement>('#understood-recovery-necessity');
