@@ -1,8 +1,13 @@
 name: Proton Mail register
+run-name: ${{ inputs.commit_message }}
 
 on:
   workflow_dispatch:
     inputs:
+      commit_message:
+        description: '目标提交信息（使用 git log -1 --format=%s 获取）'
+        required: true
+        type: string
       accounts:
         description: '多个 Outlook 账号用英文分号 ; 或换行分隔：邮箱----邮箱密码----client_id----refresh_token'
         required: true
