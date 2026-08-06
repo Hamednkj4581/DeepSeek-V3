@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Page } from 'puppeteer';
 
-import { openRecoveryEmailDialog, submitRecoveryEmail } from './recoveryEmail.js';
+import { openRecoveryEmailDialog, requestRecoveryEmailVerification, submitRecoveryEmail } from './recoveryEmail.js';
 
 interface RecoveryEmailState {
     ready: boolean;
@@ -84,4 +84,34 @@ test('waits for the recovery submit button to become enabled', async () => {
 
     assert.equal(label, 'Add and verify');
     assert.equal(waits, 1);
+});
+
+test('confirms recovery verification with email after password authentication', async () => {
+    const requestedAt = await requestRecoveryEmailVerification({
+        evaluate: async () => true
+    } as unknown as Pick<Page, 'evaluate'>, { wait: async () => undefined });
+
+    assert.ok(requestedAt instanceof Date);
+});
+
+test('waits for the recovery email verification confirmation to appear', async () => {
+    const results = [false, true];
+    let waits = 0;
+    await requestRecoveryEmailVerification({
+        evaluate: async () => results.shift()
+    } as unknown as Pick<Page, 'evaluate'>, {
+        maxPolls: 2,
+        wait: async () => { waits++; }
+    });
+
+    assert.equal(waits, 1);
+});
+
+test('reports when recovery email verification cannot be confirmed', async () => {
+    await assert.rejects(
+        requestRecoveryEmailVerification({
+            evaluate: async () => false
+        } as unknown as Pick<Page, 'evaluate'>, { maxPolls: 1, wait: async () => undefined }),
+        /未找到可用的 Verify with email 按钮/
+    );
 });

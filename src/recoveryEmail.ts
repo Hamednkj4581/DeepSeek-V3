@@ -13,6 +13,12 @@ export interface RecoveryEmailSubmitOptions {
     wait?: (seconds: number) => Promise<void>;
 }
 
+export interface RecoveryEmailVerificationOptions {
+    maxPolls?: number;
+    pollIntervalSeconds?: number;
+    wait?: (seconds: number) => Promise<void>;
+}
+
 export async function openRecoveryEmailDialog(
     page: Pick<Page, 'evaluate'>,
     options: RecoveryEmailDialogOptions = {}
@@ -98,4 +104,39 @@ export async function submitRecoveryEmail(
     }
 
     throw new Error('无法提交 Proton 恢复邮箱：页面中未找到可用的 Add and verify 按钮');
+}
+
+export async function requestRecoveryEmailVerification(
+    page: Pick<Page, 'evaluate'>,
+    options: RecoveryEmailVerificationOptions = {}
+): Promise<Date> {
+    const maxPolls = options.maxPolls ?? 30;
+    const pollIntervalSeconds = options.pollIntervalSeconds ?? 1;
+    const wait = options.wait ?? Utility.waitForSeconds;
+
+    for (let poll = 0; poll < maxPolls; poll++) {
+        const requestedAt = new Date();
+        const clicked = await page.evaluate(() => {
+            const visible = (element: Element): boolean => element.getClientRects().length > 0;
+            const button = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+                .find(candidate =>
+                    (candidate.innerText ?? '').replace(/\s+/g, ' ').trim() === 'Verify with email'
+                    && visible(candidate)
+                    && !candidate.disabled
+                    && candidate.getAttribute('aria-disabled') !== 'true'
+                );
+            if (!button)
+                return false;
+
+            button.click();
+            return true;
+        }).catch(() => false);
+
+        if (clicked)
+            return requestedAt;
+        if (poll + 1 < maxPolls)
+            await wait(pollIntervalSeconds);
+    }
+
+    throw new Error('无法验证 Proton 恢复邮箱：页面中未找到可用的 Verify with email 按钮');
 }
