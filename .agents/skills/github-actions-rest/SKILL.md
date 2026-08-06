@@ -27,7 +27,18 @@ $headers = @{
 }
 ```
 
-不得把 `$token` 展开后拼进将被记录的命令参数。JSON body 使用 `ConvertTo-Json -Compress` 在内存中生成。
+不得把 `$token` 展开后拼进将被记录的命令参数。JSON body 使用 `ConvertTo-Json -Compress` 在内存中生成，并在发送前显式编码为 UTF-8 字节；禁止把包含中文的 JSON 字符串直接传给 Windows PowerShell 的 `Invoke-WebRequest -Body`，否则会按系统代码页发送并在 GitHub 中变成 `?`。
+
+```powershell
+$json = $payload | ConvertTo-Json -Compress
+$body = [Text.Encoding]::UTF8.GetBytes($json)
+Invoke-WebRequest `
+    -Method Post `
+    -Headers $headers `
+    -Uri $uri `
+    -ContentType 'application/json; charset=utf-8' `
+    -Body $body
+```
 
 ## 查询现有运行
 
@@ -44,7 +55,7 @@ $headers = @{
 1. 触发前记录 UTC 时间、目标 ref 和该 ref 的 `HEAD` SHA，并先确认没有会混淆关联的并发 dispatch。
 2. 调用：
    `POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches`
-3. body 格式为 `{"ref":"main","inputs":{...}}`；成功状态为 `204 No Content`，该响应不返回 run ID。
+3. body 格式为 `{"ref":"main","inputs":{...}}`，必须按上述约定发送 UTF-8 字节和 `charset=utf-8`；成功状态为 `204 No Content`，该响应不返回 run ID。
 4. 从触发时间开始轮询 workflow runs endpoint，筛选：
    - `event == workflow_dispatch`
    - `head_branch == ref`

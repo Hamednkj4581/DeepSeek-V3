@@ -22,14 +22,14 @@ description: 提交推送后发现仅支持手动触发的 GitHub Actions CI；�
 1. 每次新提交成功推送后执行上述发现与选择；选中一个手动 CI 时必须显式 dispatch，未选中时记录“未触发”并正常结束 CI 环节。
 2. 记录当前分支、推送后的 SHA 和 UTC 触发时间，并确认远端分支已指向该 SHA。
 3. 使用 `git log -1 --format=%s <sha>` 读取单行提交主题；主题为空时停止并报告，不得用敏感输入或无意义文本代替。
-4. 读取被选工作流声明的必填 inputs，按该工作流已有约定取得值，并同时传入 `commit_message`；不得假设所有手动 CI 都使用 `accounts`，不得编造缺失输入。PAT 与 inputs 的处理分别遵守 `maintain-github-pat` 和 `github-actions-rest` skill，不得回显或落盘。
+4. 读取被选工作流声明的必填 inputs，按该工作流已有约定取得值，并同时传入 `commit_message`；不得假设所有手动 CI 都使用 `accounts`，不得编造缺失输入。PAT 与 inputs 的处理分别遵守 `maintain-github-pat` 和 `github-actions-rest` skill，不得回显或落盘。含中文的 dispatch JSON 必须编码为 UTF-8 字节并声明 `application/json; charset=utf-8`，不得将 JSON 字符串直接传给 Windows PowerShell 的 `Invoke-WebRequest -Body`。
 5. 调用 workflow dispatch 后按触发时间、分支和目标 SHA 轮询。收到 `204` 只表示请求成功，不表示闭环完成；必须找到本次新建的唯一 run ID。
 6. 等待运行完成并逐个检查 jobs。只有目标运行已完成，或凭据、权限、服务状态等外部条件明确阻塞时才能结束任务；阻塞时必须报告尚未触发或尚未完成，不能声称交付完成。
 
 ## 验证
 
 - 校验工作流 YAML，并确认 `run-name` 只引用非敏感的 `commit_message`。
-- 触发后确认运行的 `event == workflow_dispatch`、`head_sha` 是目标提交，且 `display_title` 等于该提交的单行主题。
+- 触发后确认运行的 `event == workflow_dispatch`、`head_sha` 是目标提交，且 `display_title` 等于该提交的单行主题。终端可能无法正确渲染中文，比较前分别以 UTF-8 编码后转 Base64；两个 Base64 值必须相等，且全中文标题不得变成仅由 `?` 组成。
 - 最终报告 run ID、网页 URL、运行状态和目标 jobs 结论；没有匹配运行时任务未完成。
 - 多个手动 CI 且用户未主动指定时，最终明确报告未触发；此时没有 run ID 是预期结果，不属于失败。
 - 重跑已有 workflow run 会沿用原运行名称；新提交必须以该提交自身的主题触发新运行。
