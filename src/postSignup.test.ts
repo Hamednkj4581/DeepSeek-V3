@@ -121,18 +121,37 @@ test('waits for the current email verification to finish before requesting anoth
     assert.equal(verificationRetries, 0);
 });
 
-test('stops when Proton repeatedly requests email verification', async () => {
+test('allows multiple repeated email verifications up to the configured limit', async () => {
+    let verificationRetries = 0;
+    const actions = await handlePostSignupPrompts(fakePage([
+        { verificationRequired: true },
+        { verificationRequired: true },
+        { complete: true, location: 'https://mail.proton.me/u/0/inbox' }
+    ]), {
+        maxPolls: 3,
+        verificationConfirmationPolls: 1,
+        onVerificationRequired: async () => { verificationRetries++; },
+        wait: async () => undefined
+    });
+
+    assert.deepEqual(actions, ['Email verification', 'Email verification']);
+    assert.equal(verificationRetries, 2);
+});
+
+test('stops when Proton exceeds the repeated email verification limit', async () => {
     await assert.rejects(
         handlePostSignupPrompts(fakePage([
             { verificationRequired: true },
+            { verificationRequired: true },
+            { verificationRequired: true },
             { verificationRequired: true }
         ]), {
-            maxPolls: 2,
+            maxPolls: 4,
             verificationConfirmationPolls: 1,
             onVerificationRequired: async () => undefined,
             wait: async () => undefined
         }),
-        /已达到 1 次重试上限/
+        /已达到 3 次重试上限/
     );
 });
 
