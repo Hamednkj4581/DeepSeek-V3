@@ -61,11 +61,48 @@ test('dismisses a delayed offer and completes one repeated email verification', 
         { complete: true, location: 'https://mail.proton.me/u/0/inbox' }
     ]), {
         maxPolls: 4,
+        verificationConfirmationPolls: 1,
         onVerificationRequired: async () => { verificationRetries++; },
         wait: async () => undefined
     });
 
     assert.deepEqual(actions, ['No, thanks', 'Start using Proton Mail now', 'Email verification']);
+    assert.equal(verificationRetries, 1);
+});
+
+test('ignores a transient email form while Proton finishes the submitted verification', async () => {
+    let verificationRetries = 0;
+    const actions = await handlePostSignupPrompts(fakePage([
+        { verificationRequired: true, location: 'https://account.proton.me/mail/signup' },
+        { verificationRequired: true, location: 'https://account.proton.me/mail/signup' },
+        { location: 'https://account.proton.me/mail/signup' },
+        { complete: true, location: 'https://mail.proton.me/u/0/inbox' }
+    ]), {
+        maxPolls: 4,
+        verificationConfirmationPolls: 3,
+        onVerificationRequired: async () => { verificationRetries++; },
+        wait: async () => undefined
+    });
+
+    assert.deepEqual(actions, []);
+    assert.equal(verificationRetries, 0);
+});
+
+test('requests another code when the repeated email form remains stable', async () => {
+    let verificationRetries = 0;
+    const actions = await handlePostSignupPrompts(fakePage([
+        { verificationRequired: true },
+        { verificationRequired: true },
+        { verificationRequired: true },
+        { complete: true, location: 'https://mail.proton.me/u/0/inbox' }
+    ]), {
+        maxPolls: 4,
+        verificationConfirmationPolls: 3,
+        onVerificationRequired: async () => { verificationRetries++; },
+        wait: async () => undefined
+    });
+
+    assert.deepEqual(actions, ['Email verification']);
     assert.equal(verificationRetries, 1);
 });
 
@@ -91,6 +128,7 @@ test('stops when Proton repeatedly requests email verification', async () => {
             { verificationRequired: true }
         ]), {
             maxPolls: 2,
+            verificationConfirmationPolls: 1,
             onVerificationRequired: async () => undefined,
             wait: async () => undefined
         }),

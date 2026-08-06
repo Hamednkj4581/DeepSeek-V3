@@ -7,6 +7,7 @@ export interface PostSignupPromptOptions {
     wait?: (seconds: number) => Promise<void>;
     onVerificationRequired?: () => Promise<void>;
     maxVerificationRetries?: number;
+    verificationConfirmationPolls?: number;
 }
 
 interface PostSignupState {
@@ -37,9 +38,11 @@ export async function handlePostSignupPrompts(
     const pollIntervalSeconds = options.pollIntervalSeconds ?? 1;
     const wait = options.wait ?? Utility.waitForSeconds;
     const maxVerificationRetries = options.maxVerificationRetries ?? 1;
+    const verificationConfirmationPolls = options.verificationConfirmationPolls ?? 5;
     const actions: string[] = [];
     let lastLocation: string | undefined;
     let verificationRetries = 0;
+    let verificationConfirmationCount = 0;
 
     for (let poll = 0; poll < maxPolls; poll++) {
         const state = await page.evaluate((): PostSignupState => {
@@ -108,6 +111,13 @@ export async function handlePostSignupPrompts(
         if (state.complete)
             return actions;
         if (state.verificationRequired) {
+            verificationConfirmationCount++;
+            if (verificationConfirmationCount < verificationConfirmationPolls) {
+                if (poll + 1 < maxPolls)
+                    await wait(pollIntervalSeconds);
+                continue;
+            }
+            verificationConfirmationCount = 0;
             if (!options.onVerificationRequired)
                 throw new Error('Proton 注册完成阶段再次要求邮箱验证，但未配置验证处理器');
             if (verificationRetries >= maxVerificationRetries)
@@ -115,6 +125,9 @@ export async function handlePostSignupPrompts(
             verificationRetries++;
             await options.onVerificationRequired();
             actions.push('Email verification');
+        }
+        else {
+            verificationConfirmationCount = 0;
         }
         if (state.action)
             actions.push(state.action);
