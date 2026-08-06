@@ -38,7 +38,7 @@ export async function handlePostSignupPrompts(
     const pollIntervalSeconds = options.pollIntervalSeconds ?? 1;
     const wait = options.wait ?? Utility.waitForSeconds;
     const maxVerificationRetries = options.maxVerificationRetries ?? 3;
-    const verificationConfirmationPolls = options.verificationConfirmationPolls ?? 5;
+    const verificationConfirmationPolls = options.verificationConfirmationPolls ?? 60;
     const actions: string[] = [];
     let lastLocation: string | undefined;
     let verificationRetries = 0;

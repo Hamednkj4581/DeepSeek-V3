@@ -121,6 +121,21 @@ test('waits for the current email verification to finish before requesting anoth
     assert.equal(verificationRetries, 0);
 });
 
+test('waits through the default verification cooldown before requesting another code', async () => {
+    let verificationRetries = 0;
+    const states: FakePostSignupState[] = Array.from({ length: 59 }, () => ({ verificationRequired: true }));
+    states.push({ complete: true, location: 'https://mail.proton.me/u/0/inbox' });
+
+    const actions = await handlePostSignupPrompts(fakePage(states), {
+        maxPolls: 60,
+        onVerificationRequired: async () => { verificationRetries++; },
+        wait: async () => undefined
+    });
+
+    assert.deepEqual(actions, []);
+    assert.equal(verificationRetries, 0);
+});
+
 test('allows multiple repeated email verifications up to the configured limit', async () => {
     let verificationRetries = 0;
     const actions = await handlePostSignupPrompts(fakePage([
