@@ -13,6 +13,8 @@ interface EmailVerificationState {
     error?: string;
 }
 
+type VerificationButtonState = 'clicked' | 'disabled' | 'missing';
+
 function sanitizeMessage(message: string, email: string): string {
     return message
         .replaceAll(email, '[EMAIL]')
@@ -51,8 +53,23 @@ async function readEmailVerificationState(page: Pick<Page, 'evaluate'>): Promise
     });
 }
 
+async function clickEmailVerificationButton(page: Pick<Page, 'evaluate'>): Promise<VerificationButtonState> {
+    return page.evaluate(() => {
+        const visible = (element: Element): boolean => element.getClientRects().length > 0;
+        const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+            .filter(button => (button.innerText ?? button.textContent ?? '').replace(/\s+/g, ' ').trim() === 'Get verification code'
+                && visible(button));
+        const enabled = buttons.find(button => !button.disabled && button.getAttribute('aria-disabled') !== 'true');
+        if (enabled) {
+            enabled.click();
+            return 'clicked';
+        }
+        return buttons.length ? 'disabled' : 'missing';
+    });
+}
+
 export async function requestEmailVerificationCode(
-    page: Pick<Page, 'click' | 'evaluate'>,
+    page: Pick<Page, 'evaluate'>,
     email: string,
     options: EmailVerificationRequestOptions = {}
 ): Promise<Date> {
@@ -63,7 +80,9 @@ export async function requestEmailVerificationCode(
 
     for (let attempt = 1; attempt <= attempts; attempt++) {
         const requestedAt = new Date();
-        await page.click("//button[normalize-space(.)='Get verification code']");
+        const buttonState = await clickEmailVerificationButton(page);
+        if (buttonState !== 'clicked')
+            throw new Error(`Proton 邮箱验证码发送失败：发送按钮${buttonState === 'disabled' ? '当前不可用' : '未显示'}`);
 
         for (let poll = 0; poll < pollsPerAttempt; poll++) {
             const state = await readEmailVerificationState(page);

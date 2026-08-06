@@ -4,12 +4,21 @@ import { Page } from 'puppeteer';
 
 import { requestEmailVerificationCode } from './emailVerification.js';
 
-function fakePage(states: Array<{ sent: boolean; error?: string }>): Pick<Page, 'click' | 'evaluate'> & { clicks: number } {
+function fakePage(
+    states: Array<{ sent: boolean; error?: string }>,
+    buttonStates: Array<'clicked' | 'disabled' | 'missing'> = []
+): Pick<Page, 'evaluate'> & { clicks: number } {
     return {
         clicks: 0,
-        click: async function () { this.clicks++; },
-        evaluate: async () => states.shift() ?? { sent: false }
-    } as unknown as Pick<Page, 'click' | 'evaluate'> & { clicks: number };
+        evaluate: async function (callback: Function) {
+            if (callback.toString().includes('Get verification code')) {
+                const result = buttonStates.shift() ?? 'clicked';
+                if (result === 'clicked') this.clicks++;
+                return result;
+            }
+            return states.shift() ?? { sent: false };
+        }
+    } as unknown as Pick<Page, 'evaluate'> & { clicks: number };
 }
 
 test('waits for Proton to confirm that the verification email was sent', async () => {
@@ -57,4 +66,24 @@ test('retries a click that produces no verification state transition', async () 
         /点击发送按钮 2 次后/
     );
     assert.equal(page.clicks, 2);
+});
+
+test('reports when the visible verification button is disabled', async () => {
+    const page = fakePage([], ['disabled']);
+
+    await assert.rejects(
+        requestEmailVerificationCode(page, 'outlook@example.com', { wait: async () => undefined }),
+        /发送按钮当前不可用/
+    );
+    assert.equal(page.clicks, 0);
+});
+
+test('reports when no visible verification button is available', async () => {
+    const page = fakePage([], ['missing']);
+
+    await assert.rejects(
+        requestEmailVerificationCode(page, 'outlook@example.com', { wait: async () => undefined }),
+        /发送按钮未显示/
+    );
+    assert.equal(page.clicks, 0);
 });
