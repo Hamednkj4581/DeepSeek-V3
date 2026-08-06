@@ -11,7 +11,7 @@ import { OutlookCredentials, preflightOutlook, waitForProtonVerificationCode } f
 import { formatProtonAccount } from './accountResult.js';
 import { VERIFICATION_TIMEOUT_MS } from './appConfig.js';
 import { handlePostSignupPrompts } from './postSignup.js';
-import { requestEmailVerificationCode } from './emailVerification.js';
+import { fillEmailVerificationAddress, requestEmailVerificationCode } from './emailVerification.js';
 import { openRecoveryEmailDialog, submitRecoveryEmail } from './recoveryEmail.js';
 
 const PROTOCOL_TIMEOUT_MS = Math.pow(2, 31) - 1;
@@ -96,7 +96,7 @@ async function registerProton(page: Page, credentials: OutlookCredentials): Prom
         throw new Error('Proton 当前未提供邮箱验证方式，无法使用 Outlook 辅助完成注册');
 
     await emailVerification.click();
-    await page.type("//input[@id='email']", credentials.email);
+    await fillEmailVerificationAddress(page, credentials.email);
     const signupVerificationStartedAt = await requestEmailVerificationCode(page, credentials.email);
     const signupCode = await receiveVerificationCode(credentials, signupVerificationStartedAt);
     await page.type("//input[@id='verification']", signupCode);
@@ -105,7 +105,7 @@ async function registerProton(page: Page, credentials: OutlookCredentials): Prom
     const signupCodes = [signupCode];
     const postSignupActions = await handlePostSignupPrompts(page, {
         onVerificationRequired: async () => {
-            await page.type("//input[@id='email']", credentials.email);
+            await fillEmailVerificationAddress(page, credentials.email);
             const requestedAt = await requestEmailVerificationCode(page, credentials.email);
             const code = await receiveVerificationCode(credentials, requestedAt, signupCodes);
             signupCodes.push(code);

@@ -15,6 +15,30 @@ interface EmailVerificationState {
 
 type VerificationButtonState = 'clicked' | 'disabled' | 'missing';
 
+export async function fillEmailVerificationAddress(
+    page: Pick<Page, 'evaluate'>,
+    email: string
+): Promise<void> {
+    const filled = await page.evaluate(address => {
+        const visible = (element: Element): boolean => element.getClientRects().length > 0;
+        const input = Array.from(document.querySelectorAll<HTMLInputElement>(
+            '#email, input[type="email"], input[autocomplete="email"]'
+        )).find(candidate => visible(candidate) && !candidate.disabled && !candidate.readOnly);
+        if (!input)
+            return false;
+
+        const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+        valueSetter?.call(input, address);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.focus();
+        return true;
+    }, email);
+
+    if (!filled)
+        throw new Error('Proton 邮箱验证失败：邮箱输入框未显示');
+}
+
 function sanitizeMessage(message: string, email: string): string {
     return message
         .replaceAll(email, '[EMAIL]')

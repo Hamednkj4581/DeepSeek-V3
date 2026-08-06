@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Page } from 'puppeteer';
 
-import { requestEmailVerificationCode } from './emailVerification.js';
+import { fillEmailVerificationAddress, requestEmailVerificationCode } from './emailVerification.js';
 
 function fakePage(
     states: Array<{ sent: boolean; error?: string }>,
@@ -20,6 +20,31 @@ function fakePage(
         }
     } as unknown as Pick<Page, 'evaluate'> & { clicks: number };
 }
+
+test('replaces an existing address before retrying email verification', async () => {
+    let assignedAddress = '';
+    const page = {
+        evaluate: async (_callback: Function, email: string) => {
+            assignedAddress = email;
+            return true;
+        }
+    } as unknown as Pick<Page, 'evaluate'>;
+
+    await fillEmailVerificationAddress(page, 'outlook@example.com');
+
+    assert.equal(assignedAddress, 'outlook@example.com');
+});
+
+test('reports when the email verification input is unavailable', async () => {
+    const page = {
+        evaluate: async () => false
+    } as unknown as Pick<Page, 'evaluate'>;
+
+    await assert.rejects(
+        fillEmailVerificationAddress(page, 'outlook@example.com'),
+        /邮箱输入框未显示/
+    );
+});
 
 test('waits for Proton to confirm that the verification email was sent', async () => {
     const page = fakePage([{ sent: false }, { sent: true }]);
