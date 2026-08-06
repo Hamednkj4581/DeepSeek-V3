@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       commit_message:
-        description: '目标提交信息（使用 git log -1 --format=%s 获取）'
+        description: '目标提交信息（使用 GitHub Commit API 获取）'
         required: true
         type: string
       accounts:
